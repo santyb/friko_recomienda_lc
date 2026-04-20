@@ -1,0 +1,881 @@
+{
+  "name": "Friko Chef Bot v3 — Producción (Telegram + Groq NLP + Supabase Sessions + Flowise RAG)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "d569904b-c06f-4561-8d3d-b4a63fe2e286",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -544,
+        -144
+      ],
+      "webhookId": "friko-chef-bot-v3-webhook",
+      "credentials": {
+        "telegramApi": {
+          "id": "tR1UunfSHsCfEpEv",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Extraer datos básicos del mensaje de Telegram ────────────────────────────\nconst msg       = $input.first()?.json?.message ?? {};\nconst chatId    = msg?.chat?.id?.toString() ?? null;\nconst firstName = (msg?.from?.first_name ?? 'amigo').substring(0, 50);\nconst msgText   = (msg?.text ?? '').trim().substring(0, 2000);\nconst isText    = typeof msg?.text === 'string' && msg.text.trim().length > 0;\nconst RESET_CMDS = ['/start','/reset','/nuevo','/iniciar','/reiniciar'];\nconst isCommand = RESET_CMDS.includes(msgText.toLowerCase());\n\nreturn [{ json: { chatId, firstName, msgText, isText, isCommand } }];"
+      },
+      "id": "a2275b07-21df-4d09-ba5f-1175e65a36fe",
+      "name": "Code: Validate Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-istext",
+              "leftValue": "={{ $json.isText }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "rightType": "boolean"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e0893212-545a-48e4-ae02-2bab88e82510",
+      "name": "IF: Valid Text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "🤖 <b>Solo acepto mensajes de texto.</b>\\n\\nPor favor escríbeme tu consulta. Escribe /nuevo para comenzar.",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "722bcad9-e47f-4fcd-b514-254556aa3330",
+      "name": "Telegram: Solo Texto",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        272,
+        -144
+      ],
+      "webhookId": "1aecfbaf-a99c-4102-a4be-f43845824d0d",
+      "credentials": {
+        "telegramApi": {
+          "id": "tR1UunfSHsCfEpEv",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://xydwqnaljpgwqrlievwj.supabase.co/rest/v1/bot_sessions?select=*&chat_id=eq.{{ encodeURIComponent($json.chatId) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "b1ee311d-2bd3-4489-9cf8-0418a19e11bc",
+      "name": "HTTP: Supabase GET Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -32,
+        96
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── TABLA REQUERIDA EN SUPABASE (ejecutar una vez) ───────────────────────────\n// CREATE TABLE bot_sessions (\n//   chat_id    TEXT PRIMARY KEY,\n//   session    JSONB        NOT NULL DEFAULT '{}',\n//   updated_at TIMESTAMPTZ  DEFAULT now(),\n//   expires_at TIMESTAMPTZ  DEFAULT (now() + interval '30 minutes')\n// );\n// ─────────────────────────────────────────────────────────────────────────────\n\nconst msgData = $('Code: Validate Message').first()?.json ?? {};\nconst chatId    = msgData.chatId    ?? 'unknown';\nconst firstName = msgData.firstName ?? 'amigo';\nconst msgText   = msgData.msgText   ?? '';\nconst isCommand = msgData.isCommand ?? false;\n\n// Supabase GET devuelve { body: [...] } por fullResponse:true\nconst supaResp = $input.first()?.json ?? {};\nconst rawBody  = supaResp?.body ?? supaResp ?? [];\nconst rows     = Array.isArray(rawBody) ? rawBody : (rawBody ? [rawBody] : []);\nconst dbRow    = rows.length > 0 ? rows[0] : null;\nconst dbSess   = dbRow?.session ?? null;\n\n// ── Rate limit: máximo 1 mensaje por segundo por usuario ─────────────────────\nif (!isCommand && dbSess?.last_msg_at) {\n  const diff = Date.now() - new Date(dbSess.last_msg_at).getTime();\n  if (diff < 1000) {\n    return [{ json: {\n      chatId, firstName, msgText,\n      session: dbSess,\n      sendWelcome: false, rateLimited: true,\n      telegramMessage: '⏳ Un momento... envía de a un mensaje a la vez.',\n      isFollowUp: false\n    }}];\n  }\n}\n\n// ── Determinar si es sesión nueva ────────────────────────────────────────────\nconst isExpired = dbRow && new Date(dbRow.expires_at) < new Date();\nconst isNew     = isCommand || !dbRow || isExpired;\n\nlet session;\nif (isNew) {\n  session = {\n    ocasion: null, region: null, personas: null, preparacion: null,\n    completed: false, last_msg_at: new Date().toISOString()\n  };\n} else {\n  session = {\n    ocasion:     dbSess?.ocasion     ?? null,\n    region:      dbSess?.region      ?? null,\n    personas:    dbSess?.personas    ?? null,\n    preparacion: dbSess?.preparacion ?? null,\n    completed:   dbSess?.completed   ?? false,\n    last_msg_at: new Date().toISOString()\n  };\n}\n\n// ── Follow-up: sesión completa, nuevo mensaje libre ──────────────────────────\nconst isFollowUp = !isNew && session.completed === true;\n\n// ── Mensaje de bienvenida ────────────────────────────────────────────────────\nlet telegramMessage = '';\nif (isNew) {\n  telegramMessage =\n    '👋 <b>¡Hola ' + firstName + '!</b> Soy <b>Chef Friko</b> 🍗, tu asistente culinario oficial de Friko.\\n\\n' +\n    '¡Te ayudaré a encontrar el producto perfecto y una receta deliciosa!\\n\\n' +\n    '🍽️ <b>¿Para qué ocasión estás cocinando?</b>\\n' +\n    '<i>Ej: almuerzo familiar, parrillada con amigos, cena rápida, lonchera infantil</i>\\n\\n' +\n    '<i>Tip: puedes enviar todo en un mensaje:\\n' +\n    '\"cena para 6 personas en Medellín, voy a hacer parrilla\" ✅</i>';\n}\n\nreturn [{ json: {\n  chatId, firstName, msgText, session, isNew, isFollowUp,\n  sendWelcome: isNew, rateLimited: false, telegramMessage\n}}];"
+      },
+      "id": "c5f3b344-1a98-42af-883a-aebe1a58db3a",
+      "name": "Code: Init Session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xydwqnaljpgwqrlievwj.supabase.co/rest/v1/bot_sessions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chatId, session: $json.session, updated_at: new Date().toISOString(), expires_at: new Date(Date.now() + 30*60*1000).toISOString() }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "f41ceb64-cf67-4221-9d01-e2fcec92dade",
+      "name": "HTTP: Supabase UPSERT Init",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        288,
+        304
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-welcome",
+              "leftValue": "={{ $('Code: Init Session').first().json.sendWelcome }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            },
+            {
+              "id": "cond-ratelimit",
+              "leftValue": "={{ $('Code: Init Session').first().json.rateLimited }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "a9e6e663-5e81-4783-b277-83f6c1953b30",
+      "name": "IF: Welcome o Rate Limit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        640,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Code: Init Session').first().json.chatId }}",
+        "text": "={{ $('Code: Init Session').first().json.telegramMessage }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "9ee39bf9-1061-4655-9927-7602fd2ea278",
+      "name": "Telegram: Bienvenida",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        752,
+        -128
+      ],
+      "webhookId": "8732fe93-d599-488e-badd-cb72d89f0ece",
+      "credentials": {
+        "telegramApi": {
+          "id": "tR1UunfSHsCfEpEv",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Leer contexto desde Init Session (no desde $input que puede ser corrompido) ──\nconst initData  = $('Code: Init Session').first()?.json ?? {};\nconst chatId    = initData.chatId     ?? 'unknown';\nconst firstName = initData.firstName  ?? 'amigo';\nconst msgText   = initData.msgText    ?? '';\nconst session   = { ...(initData.session ?? {}) };\nconst isFollowUp = initData.isFollowUp ?? false;\n\n// ── Follow-up: enviar directo a Flowise sin recolectar datos ────────────────\nif (isFollowUp) {\n  return [{ json: {\n    chatId, firstName, msgText, session,\n    simpleResult: null, groqBody: null, needsGroq: false, isFollowUp: true\n  }}];\n}\n\nconst lower = msgText.toLowerCase().trim();\n\nconst NUM_WORDS = {\n  'un':1,'uno':1,'una':1,'dos':2,'tres':3,'cuatro':4,'cinco':5,'seis':6,\n  'siete':7,'ocho':8,'nueve':9,'diez':10,'once':11,'doce':12,'trece':13,\n  'catorce':14,'quince':15,'veinte':20,'veinticinco':25,'treinta':30,\n  'cuarenta':40,'cincuenta':50,'cien':100\n};\n\nconst PREP_KEYS = [\n  'horno','sarten','sartén','parrilla','airfryer','freidora de aire',\n  'freidora','vapor','microondas','olla a presion','olla a presión',\n  'olla','estufa','cualquiera','no importa','no tengo preferencia'\n];\n\nlet simpleResult = null;\n\n// Regla 1: Solo falta PERSONAS y el mensaje es un número o número en texto\nif (!session.personas && session.ocasion && session.region) {\n  const numRaw  = parseInt(lower.replace(/[^0-9]/g, ''), 10);\n  const numWord = NUM_WORDS[lower.trim()] ?? null;\n  const finalN  = (numRaw > 0 && numRaw <= 500) ? numRaw : numWord;\n  if (finalN && finalN > 0 && finalN <= 500) {\n    simpleResult = { personas: finalN };\n  }\n}\n\n// Regla 2: Solo falta PREPARACION y el mensaje es una keyword o respuesta corta\nif (!simpleResult && !session.preparacion && session.personas) {\n  const found = PREP_KEYS.find(k => lower.includes(k));\n  if (found) {\n    simpleResult = { preparacion: found };\n  } else if (lower.split(' ').length <= 4 && lower.length < 30) {\n    simpleResult = { preparacion: msgText.trim() };\n  }\n}\n\nif (simpleResult) {\n  return [{ json: {\n    chatId, firstName, msgText, session,\n    simpleResult, groqBody: null, needsGroq: false, isFollowUp: false\n  }}];\n}\n\n// ── Necesita Groq para NLP complejo ──────────────────────────────────────────\nconst systemPrompt = [\n  'Eres un extractor de datos JSON para un bot culinario colombiano.',\n  'Analiza el mensaje y extrae solo los campos presentes. Responde SOLO con JSON valido, sin texto extra.',\n  '',\n  'CAMPOS (usa null si el campo no aparece):',\n  '- ocasion: string|null. La ocasion de cocina. Ej: \"almuerzo familiar\", \"parrillada\", \"cena romantica\".',\n  '- region:  string|null. Ciudad o region de Colombia. Ej: \"Antioquia\", \"Bogota\", \"Medellin\".',\n  '- personas: integer|null. Numero de personas. Convierte texto: \"tres\"=3, \"para mi solo\"=1, \"una docena\"=12.',\n  '- preparacion: string|null. Metodo de coccion. Ej: \"horno\", \"sarten\", \"parrilla\", \"airfryer\", \"olla\".',\n  '',\n  'REGLAS: Sin markdown. Sin explicaciones. Solo JSON. personas debe ser entero positivo o null.',\n  '',\n  'EJEMPLOS:',\n  '\"cena para tres en Medellin\" -> {\"ocasion\":\"cena\",\"region\":\"Medellin\",\"personas\":3,\"preparacion\":null}',\n  '\"almuerzo bogota 8 horno\"    -> {\"ocasion\":\"almuerzo\",\"region\":\"Bogota\",\"personas\":8,\"preparacion\":\"horno\"}',\n  '\"parrillada antioquia\"       -> {\"ocasion\":\"parrillada\",\"region\":\"Antioquia\",\"personas\":null,\"preparacion\":\"parrilla\"}'\n].join('\\n');\n\nconst groqBody = {\n  model: 'llama-3.3-70b-versatile',\n  temperature: 0,\n  max_tokens: 150,\n  response_format: { type: 'json_object' },\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user',   content: msgText }\n  ]\n};\n\nreturn [{ json: {\n  chatId, firstName, msgText, session,\n  simpleResult: null, groqBody, needsGroq: true, isFollowUp: false\n}}];"
+      },
+      "id": "ea1d9579-23a6-4e50-94e0-a57b2ccaf31a",
+      "name": "Code: Simple Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-needsgroq",
+              "leftValue": "={{ $json.needsGroq }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "rightType": "boolean"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1a42b136-8472-417c-99c2-d5d40debbd88",
+      "name": "IF: Needs Groq?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer <API_KEY>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.groqBody) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "5f580a93-13f2-4401-8198-0fe18729960b",
+      "name": "HTTP: Groq NLP Extract",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1248,
+        -96
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Contexto siempre disponible desde Simple Extract (upstream de ambas ramas) ──\nlet ctxData = {};\ntry { ctxData = $('Code: Simple Extract').first()?.json ?? {}; } catch(e) {}\n\nconst chatId     = ctxData.chatId     ?? 'unknown';\nconst firstName  = ctxData.firstName  ?? 'amigo';\nconst msgText    = ctxData.msgText    ?? '';\nconst isFollowUp = ctxData.isFollowUp ?? false;\n\nlet session = {\n  ocasion:     ctxData.session?.ocasion     ?? null,\n  region:      ctxData.session?.region      ?? null,\n  personas:    ctxData.session?.personas    ?? null,\n  preparacion: ctxData.session?.preparacion ?? null,\n  completed:   ctxData.session?.completed   ?? false,\n  last_msg_at: new Date().toISOString()\n};\n\n// ── Follow-up: enrutar directo al RAG ────────────────────────────────────────\nif (isFollowUp) {\n  return [{ json: {\n    chatId, firstName, session,\n    step: 'followup',\n    directMessage: msgText,\n    nextQuestion: ''\n  }}];\n}\n\nconst inputData = $input.first()?.json ?? {};\n\nif (inputData.simpleResult && Object.keys(inputData.simpleResult).length > 0) {\n  // ── Ruta de extracción simple ─────────────────────────────────────────────\n  const s = inputData.simpleResult;\n  if (s.personas    != null) session.personas    = s.personas;\n  if (s.preparacion != null) session.preparacion = s.preparacion;\n  if (s.ocasion     != null) session.ocasion     = s.ocasion;\n  if (s.region      != null) session.region      = s.region;\n\n} else {\n  // ── Ruta de Groq NLP ─────────────────────────────────────────────────────\n  let extracted = { ocasion: null, region: null, personas: null, preparacion: null };\n\n  try {\n    const rawContent = inputData?.choices?.[0]?.message?.content ?? '{}';\n    const cleaned    = rawContent.replace(/```json|```/gi, '').trim();\n    const parsed     = JSON.parse(cleaned);\n\n    if (typeof parsed?.ocasion === 'string' && parsed.ocasion.trim().length > 1)\n      extracted.ocasion = parsed.ocasion.trim();\n    if (typeof parsed?.region === 'string' && parsed.region.trim().length > 1)\n      extracted.region = parsed.region.trim();\n    if (Number.isInteger(parsed?.personas) && parsed.personas > 0 && parsed.personas <= 1000)\n      extracted.personas = parsed.personas;\n    if (typeof parsed?.preparacion === 'string' && parsed.preparacion.trim().length > 1)\n      extracted.preparacion = parsed.preparacion.trim();\n  } catch(e) {\n    // Groq falló o devolvió JSON inválido — extracted queda en nulls\n  }\n\n  // Señales de corrección: sobreescribir campo ya guardado si el usuario corrige\n  const CORRECTIONS = ['en realidad','mejor dicho','cambia','corrige','no ',\n    'perdón','perdon','quiero','prefiero','olvidé','olvide','equivoqué','equivoque'];\n  const isCorrecting = CORRECTIONS.some(sig => msgText.toLowerCase().includes(sig));\n\n  if ((isCorrecting || !session.ocasion)     && extracted.ocasion)     session.ocasion     = extracted.ocasion;\n  if ((isCorrecting || !session.region)      && extracted.region)      session.region      = extracted.region;\n  if ((isCorrecting || !session.personas)    && extracted.personas)    session.personas    = extracted.personas;\n  if ((isCorrecting || !session.preparacion) && extracted.preparacion) session.preparacion = extracted.preparacion;\n}\n\n// ── Determinar completitud ────────────────────────────────────────────────────\nconst allReady = !!(session.ocasion && session.region && session.personas && session.preparacion);\nsession.completed = allReady;\nconst step = allReady ? 'send_to_rag' : 'ask_question';\n\nlet nextQuestion = '';\nif (!allReady) {\n  if (!session.ocasion) {\n    nextQuestion =\n      '🍽️ <b>¿Para qué ocasión estás cocinando?</b>\\n' +\n      '<i>Ej: almuerzo familiar, parrillada con amigos, cena rápida, evento especial</i>';\n  } else if (!session.region) {\n    nextQuestion =\n      '✅ <i>Ocasión: ' + session.ocasion + '</i>\\n\\n' +\n      '📍 <b>¿En qué región de Colombia te encuentras?</b>\\n' +\n      '<i>Ej: Antioquia, Bogotá, Atlántico, Santander, Eje Cafetero, Costa Caribe</i>';\n  } else if (!session.personas) {\n    nextQuestion =\n      '✅ <i>Región: ' + session.region + '</i>\\n\\n' +\n      '👥 <b>¿Para cuántas personas vas a cocinar?</b>\\n' +\n      '<i>Solo el número, ejemplo: 4</i>';\n  } else {\n    nextQuestion =\n      '✅ <i>Para ' + session.personas + ' persona(s)</i>\\n\\n' +\n      '🍳 <b>¿Tipo de preparación preferida?</b>\\n' +\n      '<i>Ej: horno, sartén, parrilla, airfryer, freidora de aire, olla a presión</i>\\n\\n' +\n      '<i>Si no tienes preferencia escribe: cualquiera</i>';\n  }\n}\n\nreturn [{ json: { chatId, firstName, session, step, directMessage: '', nextQuestion } }];"
+      },
+      "id": "5fa2d960-ac6c-4b3a-9846-b6ef96766aa7",
+      "name": "Code: Merge & Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xydwqnaljpgwqrlievwj.supabase.co/rest/v1/bot_sessions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chatId, session: $json.session, updated_at: new Date().toISOString(), expires_at: new Date(Date.now() + 30*60*1000).toISOString() }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "e681d964-58c6-47c2-b80f-4b8fb66cc6e9",
+      "name": "HTTP: Supabase UPSERT Merge",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1824,
+        -96
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-rag",
+              "leftValue": "={{ $('Code: Merge & Validate').first().json.step }}",
+              "rightValue": "send_to_rag",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-followup",
+              "leftValue": "={{ $('Code: Merge & Validate').first().json.step }}",
+              "rightValue": "followup",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "1ca68b90-bcfc-4ec5-9b8f-34b39ac23d69",
+      "name": "IF: All Data Ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1712,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Code: Merge & Validate').first().json.chatId }}",
+        "text": "={{ $('Code: Merge & Validate').first().json.nextQuestion }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "ab2f45c7-e790-43c8-950d-5256c6b1a777",
+      "name": "Telegram: Pedir Campo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1824,
+        560
+      ],
+      "webhookId": "be8ac91f-6486-4492-97bb-962ec6afc91c",
+      "credentials": {
+        "telegramApi": {
+          "id": "tR1UunfSHsCfEpEv",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Leer datos de Merge & Validate (siempre upstream) ───────────────────────\nlet mergeData = {};\ntry { mergeData = $('Code: Merge & Validate').first()?.json ?? {}; } catch(e) {}\n\nconst chatId        = mergeData.chatId        ?? 'unknown';\nconst firstName     = mergeData.firstName     ?? 'amigo';\nconst session       = mergeData.session       ?? {};\nconst directMessage = mergeData.directMessage ?? '';\n\nconst ocasion     = session.ocasion     ?? 'no especificada';\nconst region      = session.region      ?? 'no especificada';\nconst personas    = session.personas    ?? 1;\nconst preparacion = session.preparacion ?? 'cualquiera';\n\n// Consulta semántica para retrieval efectivo (NO roleplay hacia Chef Friko)\nconst parts = [ocasion, region, personas + ' personas'];\nif (preparacion && preparacion !== 'cualquiera') parts.push(preparacion);\n\nconst semanticQuery =\n  parts.join(', ') +\n  '. ¿Qué producto Friko recomiendas y qué receta para ' + personas + ' persona(s)? ' +\n  'Ajusta todas las cantidades exactamente para ' + personas + ' persona(s).';\n\nconst finalQuestion = directMessage || semanticQuery;\n\nreturn [{ json: {\n  chatId, firstName, session,\n  flowisePayload: {\n    question:  finalQuestion,\n    sessionId: 'telegram_' + chatId\n  }\n}}];"
+      },
+      "id": "46159dfb-7aac-4643-9b7c-98e9abfb4d74",
+      "name": "Code: Build Flowise Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://cloud.flowiseai.com/api/v1/prediction/97b6bcbf-14a8-49c0-882b-294419deb0a1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_FLOWISE_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.flowisePayload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "id": "aefd0027-d6f4-4254-ac52-51f96dd51e57",
+      "name": "HTTP: Call Flowise RAG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2448,
+        352
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Leer respuesta HTTP de Flowise ───────────────────────────────────────────\nconst httpResponse = $input.first()?.json ?? {};\n\nlet chatId    = 'unknown';\nlet firstName = 'amigo';\n\ntry {\n  const buildData = $('Code: Build Flowise Query').first()?.json ?? {};\n  chatId    = buildData.chatId    ?? 'unknown';\n  firstName = buildData.firstName ?? 'amigo';\n} catch(e) { /* continuar con defaults */ }\n\nconst rawText   = (httpResponse?.text   ?? '').trim();\nconst rawAnswer = (httpResponse?.answer ?? '').trim();\nconst isHttpErr = !!(httpResponse?.error) ||\n                  (typeof httpResponse?.statusCode === 'number' && httpResponse.statusCode >= 400);\n\nfunction mdToHtml(text) {\n  if (!text) return '';\n  return text\n    .replace(/&/g,               '&amp;')\n    .replace(/</g,               '&lt;')\n    .replace(/>/g,               '&gt;')\n    .replace(/\\*\\*\\*(.*?)\\*\\*\\*/gs, '<b><i>$1</i></b>')\n    .replace(/\\*\\*(.*?)\\*\\*/gs,    '<b>$1</b>')\n    .replace(/\\*(.*?)\\*/gs,          '<b>$1</b>')\n    .replace(/__(.*?)__/gs,          '<u>$1</u>')\n    .replace(/_(.*?)_/gs,            '<i>$1</i>')\n    .replace(/`(.*?)`/g,             '<code>$1</code>');\n}\n\nlet success = false;\nlet responseText = '';\n\nif (isHttpErr || (!rawText && !rawAnswer)) {\n  responseText =\n    '😔 <b>Ups, tuve un inconveniente</b> al consultar el catálogo de Friko.\\n\\n' +\n    'Por favor intenta de nuevo escribiendo /nuevo.\\n' +\n    '<i>Si el problema persiste, intenta más tarde.</i>';\n} else {\n  success = true;\n  responseText =\n    mdToHtml(rawText || rawAnswer) +\n    '\\n\\n─────────────────\\n' +\n    '💬 <i>¿Quieres otra recomendación?</i> Escribe /nuevo\\n' +\n    '🌐 Más recetas en www.momentosfriko.com';\n}\n\nreturn [{ json: { chatId, firstName, responseText, success } }];"
+      },
+      "id": "c78937a8-5657-4e87-a836-92663644b3d2",
+      "name": "Code: Process Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2720,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-success",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "rightType": "boolean"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5b2776a5-67d7-4280-8d67-3df160221451",
+      "name": "IF: Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2944,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.responseText }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "ba136718-d66e-4980-bfff-9a272bd0b6d1",
+      "name": "Telegram: Enviar Receta",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3200,
+        80
+      ],
+      "webhookId": "ca4314cf-c914-4f5f-a47e-cebfaada449b",
+      "credentials": {
+        "telegramApi": {
+          "id": "tR1UunfSHsCfEpEv",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.responseText }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "135cdd44-24f7-489f-8e1c-67afb706f252",
+      "name": "Telegram: Enviar Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3200,
+        528
+      ],
+      "webhookId": "bf988fb4-365c-49df-b4ab-738917c28ec7",
+      "credentials": {
+        "telegramApi": {
+          "id": "tR1UunfSHsCfEpEv",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code: Validate Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Validate Message": {
+      "main": [
+        [
+          {
+            "node": "IF: Valid Text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Valid Text?": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Supabase GET Session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram: Solo Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Supabase GET Session": {
+      "main": [
+        [
+          {
+            "node": "Code: Init Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Init Session": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Supabase UPSERT Init",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Supabase UPSERT Init": {
+      "main": [
+        [
+          {
+            "node": "IF: Welcome o Rate Limit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Welcome o Rate Limit?": {
+      "main": [
+        [
+          {
+            "node": "Telegram: Bienvenida",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code: Simple Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Simple Extract": {
+      "main": [
+        [
+          {
+            "node": "IF: Needs Groq?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Needs Groq?": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Groq NLP Extract",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code: Merge & Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Groq NLP Extract": {
+      "main": [
+        [
+          {
+            "node": "Code: Merge & Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Merge & Validate": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Supabase UPSERT Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Supabase UPSERT Merge": {
+      "main": [
+        [
+          {
+            "node": "IF: All Data Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: All Data Ready?": {
+      "main": [
+        [
+          {
+            "node": "Code: Build Flowise Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram: Pedir Campo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Build Flowise Query": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Call Flowise RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Call Flowise RAG": {
+      "main": [
+        [
+          {
+            "node": "Code: Process Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Process Response": {
+      "main": [
+        [
+          {
+            "node": "IF: Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Success?": {
+      "main": [
+        [
+          {
+            "node": "Telegram: Enviar Receta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram: Enviar Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "54d1f763-e3e6-4816-a464-357fd9a79db0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3860cbc35814cc6e93c4a2d5fbaa6385c559e7eefc06aef8224929a9eb03ea37"
+  },
+  "id": "TryBjX7RMZQ2GBZm",
+  "tags": [
+    {
+      "updatedAt": "2026-04-17T01:12:26.802Z",
+      "createdAt": "2026-04-17T01:12:26.802Z",
+      "id": "JTRlykRp4ey3owKj",
+      "name": "Telegram Bot"
+    },
+    {
+      "updatedAt": "2026-04-17T01:12:26.835Z",
+      "createdAt": "2026-04-17T01:12:26.835Z",
+      "id": "TAu6nNePfbj7iYX9",
+      "name": "RAG"
+    },
+    {
+      "updatedAt": "2026-04-13T19:50:11.825Z",
+      "createdAt": "2026-04-13T19:50:11.825Z",
+      "id": "aqZC3wVBuZ6YawqU",
+      "name": "Friko"
+    },
+    {
+      "updatedAt": "2026-04-17T01:38:55.973Z",
+      "createdAt": "2026-04-17T01:38:55.973Z",
+      "id": "zFJPFnVpGB1yPrxQ",
+      "name": "NLP"
+    },
+    {
+      "updatedAt": "2026-04-17T02:18:31.616Z",
+      "createdAt": "2026-04-17T02:18:31.616Z",
+      "id": "znXy7heXqbxhSCb7",
+      "name": "Produccion"
+    }
+  ]
+}
