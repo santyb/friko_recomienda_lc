@@ -102,11 +102,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+              "value": "Bearer <API_KEY>"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+              "value": "<API_KEY>"
             }
           ]
         },
@@ -152,11 +152,11 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+              "value": "<API_KEY>"
             },
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+              "value": "Bearer <API_KEY>"
             },
             {
               "name": "Content-Type",
@@ -360,11 +360,11 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+              "value": "<API_KEY>"
             },
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZHdxbmFsanBnd3FybGlldndqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjIwNDMyMSwiZXhwIjoyMDkxNzgwMzIxfQ.R8lb3fEd1JXnMacVy2wpllcrNGl_E4j3aw6LZvUEjHw"
+              "value": "Bearer <API_KEY>"
             },
             {
               "name": "Content-Type",
