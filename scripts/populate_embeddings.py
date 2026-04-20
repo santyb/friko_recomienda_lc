@@ -8,11 +8,10 @@ Dependencias:
     pip install openai supabase python-dotenv
 
 Variables de entorno (.env):
-    OPENAI_API_KEY=sk-...
+    OPENAI_API_KEY="OPENAI_API_KEY"
     SUPABASE_URL=https://xxxx.supabase.co
     SUPABASE_SERVICE_KEY=eyJ...
     
-    grupo 12: <API_KEY>
 """
 
 import os, time
