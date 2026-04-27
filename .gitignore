@@ -1,3 +1,4 @@
 # Ignore ENV
 
 env/
+secrets.txt

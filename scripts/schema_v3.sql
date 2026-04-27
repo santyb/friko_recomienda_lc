@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS public.bot_sessions (
 );
 
 -- ── 2. ÍNDICES VECTORIALES ────────────────────────────────────
+-- HNSW HNSW significa Hierarchical Navigable Small World (Mundo Pequeño Navegable Jerárquico en español). Es uno de los algoritmos más eficientes y populares utilizados para la búsqueda aproximada del vecino más próximo (ANN, por sus siglas en inglés) en conjuntos de datos de alta dimensión, comúnmente en bases de datos vectoriales
 -- HNSW requiere pgvector >= 0.5.0 (Supabase >= Nov 2023).
 -- Para verificar tu versión: SELECT extversion FROM pg_extension WHERE extname='vector';
 -- Si la versión es < 0.5.0, usa IVFFlat (ver comentario al final).
