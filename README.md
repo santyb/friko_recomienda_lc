@@ -1,303 +1,334 @@
-# 📚 Friko Recomienda v2 — Documentación Completa
-> Sistema de recomendación de productos y recetas colombianas con IA
+# 🍗 Friko Recomienda — README Técnico
+
+> Asistente conversacional con IA para recomendación de productos y recetas de las marcas **Friko** y **Antillana** del Grupo BIOS, disponible en dos canales: web y Telegram.
+
+**Link Landing Page:** [https://frikorecomienda.netlify.app](https://frikorecomienda.netlify.app)
+
+**Bot de Telegram:** [@friko_recomienda_bot](https://t.me/friko_recomienda_bot)
 
 ---
-
-## 🏗️ ARQUITECTURA COMPLETA
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  USUARIO (Web / Telegram)                                        │
-│  "Hola, estoy en Medellín, somos 6, tengo airfryer, es almuerzo" │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  FLOWISE CLOUD                                                   │
-│                                                                  │
-│  ┌──────────────┐   rephrasePrompt   ┌─────────────────────┐   │
-│  │  Buffer      │◄──[{chat_history}]─│                     │   │
-│  │  Memory      │   [{question}]     │  Conversational     │   │
-│  └──────────────┘                   │  Retrieval QA Chain  │   │
-│                                     │                      │   │
-│  ┌──────────────┐  responsePrompt   │                      │   │
-│  │  Groq        │◄──[{context}]─────│                      │   │
-│  │  LLaMA 3.3   │                   └──────────────────────┘   │
-│  │  70B         │                             ▲                 │
-│  └──────────────┘                             │                 │
-│                                               │ retriever       │
-│  ┌──────────────┐  embedding query            │                 │
-│  │  OpenAI      │──────────────────►┌─────────────────────┐   │
-│  │  Embeddings  │                   │  Supabase Vector     │   │
-│  │  (3-small)   │                   │  Store               │   │
-│  └──────────────┘                   │  topK=10             │   │
-│                                     └─────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-                           │ match_documents RPC
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  SUPABASE (PostgreSQL + pgvector)                               │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  public.documents                                        │  │
-│  │  content: "Producto: Chuzos de contramuslo (FRIKO)..."  │  │
-│  │  embedding: vector(1536)  [HNSW index]                  │  │
-│  │  metadata: {sku, region, marca, pers_min, pers_max, ...}│  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  public.productos  public.recetas  public.categorias    │  │
-│  │  public.regiones   public.producto_receta               │  │
-│  │  public.bot_sessions                                    │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
+ 
+## Índice
+ 
+1. [Descripción general](#1-descripción-general)
+2. [Arquitectura del sistema](#2-arquitectura-del-sistema)
+3. [Stack tecnológico](#3-stack-tecnológico)
+4. [Componentes y repositorios](#4-componentes-y-repositorios)
+5. [Requisitos previos](#5-requisitos-previos)
+6. [Cómo acceder al sistema](#6-cómo-acceder-al-sistema)
+7. [Uso del sistema](#7-uso-del-sistema)
+8. [Flujo de datos](#8-flujo-de-datos)
+9. [Comportamiento y límites del sistema](#9-comportamiento-y-límites-del-sistema)
+10. [Preguntas frecuentes](#10-preguntas-frecuentes)
 ---
 
-## 📦 COMPONENTES DEL SISTEMA
+## 1. Descripción general
 
-### 1. Supabase (Base de datos + Vector Store)
-**Qué hace:** Almacena el catálogo de productos, recetas y los vectores semánticos para búsqueda por similaridad.
+**Friko Recomienda** es un sistema de inteligencia artificial conversacional que guía al usuario en la elección del producto Friko o Antillana ideal y le entrega la receta completa para prepararlo.
 
-**Tablas clave:**
-- `documents` — Tabla principal del RAG. Cada producto tiene un documento con su contenido semántico enriquecido y su embedding vectorial.
-- `productos` — Catálogo estructurado con región, método, personas min/max.
-- `recetas` — Recetas oficiales de momentosfriko.com.
-- `producto_receta` — Relación muchos-a-muchos entre productos y recetas.
-- `bot_sessions` — Sesiones de Telegram para contexto conversacional.
+El sistema recopila **4 datos del usuario** de forma conversacional:
 
-**Función RPC crítica:**
-```sql
-match_documents(query_embedding, match_count, filter)
-```
-Esta es la función que llama Flowise para buscar documentos similares. Sin ella el RAG no funciona.
-
----
-
-### 2. OpenAI Embeddings (text-embedding-3-small)
-**Qué hace:** Convierte el texto del usuario y el contenido de los documentos en vectores numéricos para permitir búsqueda semántica.
-
-**⚠️ CRÍTICO:** El modelo de embedding usado para **poblar** la base de datos DEBE ser el mismo que usa Flowise para **consultar**. Ambos son `text-embedding-3-small`. Si cambias uno, debes re-embeddear todos los documentos.
-
----
-
-### 3. Flowise Cloud (Orquestador del RAG)
-**Qué hace:** Maneja el flujo conversacional completo:
-1. Recibe el mensaje del usuario
-2. Reformula la pregunta usando el historial (rephrasePrompt)
-3. Hace búsqueda semántica en Supabase
-4. Pasa el contexto recuperado al LLM
-5. El LLM genera la respuesta final
-
-**Archivos:** `FrikoRAGPipeline_ChatflowV2.json`
-
----
-
-### 4. Groq / LLaMA 3.3 70B (LLM)
-**Qué hace:** Genera las respuestas del chatbot. Analiza el contexto de productos recuperado y produce:
-- Validación de región
-- Scoring interno de productos
-- Recomendación con justificación
-- Receta completa (oficial o generada)
-
-**Modelo:** `llama-3.3-70b-versatile`
-**Temperature:** 0.55 (equilibrio entre creatividad para recetas y precisión para datos)
-
----
-
-### 5. Landing Page
-**Qué hace:** Interfaz web que:
-- Muestra el consent modal de datos personales
-- Explica al usuario qué hace el bot y qué esperar
-- Carga el widget de Flowise después del consent
-- Incluye la sección legal permanente
-
-**Archivo:** `friko_recomienda_landing_v2.html`
-
----
-
-## 🚀 GUÍA DE DESPLIEGUE PASO A PASO
-
-### Paso 1: Configurar Supabase
-
-```sql
--- 1.a Ejecuta schema_v2.sql en el SQL Editor de Supabase
--- Crea tablas, funciones RPC, índices HNSW y datos iniciales
-
--- 1.b Verifica que la extensión vector esté activa
-SELECT * FROM pg_extension WHERE extname = 'vector';
-
--- 1.c Verifica la función match_documents
-SELECT proname FROM pg_proc WHERE proname = 'match_documents';
-```
-
-### Paso 2: Poblar la tabla documents
-
-```bash
-# Instala dependencias
-pip install openai supabase openpyxl
-
-# Ejecuta el script de seed
-export OPENAI_API_KEY="sk-..."
-export SUPABASE_URL="https://xydwqnaljpgwqrlievwj.supabase.co"
-export SUPABASE_KEY="tu-service-role-key"  # NO la anon key
-
-python seed_documents.py
-```
-
-**Verificación:**
-```sql
--- Debe retornar 99 filas
-SELECT COUNT(*) FROM documents;
-
--- Verifica que los embeddings no son null
-SELECT COUNT(*) FROM documents WHERE embedding IS NULL;
--- Debe ser 0
-```
-
-### Paso 3: Configurar Flowise
-
-```bash
-# Opción A: Flowise Cloud
-# 1. Ve a https://cloud.flowiseai.com
-# 2. Create → Import Chatflow
-# 3. Sube FrikoRAGPipeline_ChatflowV2.json
-# 4. Configura credenciales:
-#    - Groq API Key (de console.groq.com)
-#    - OpenAI API Key (de platform.openai.com)
-#    - Supabase API (URL + anon key)
-
-# Opción B: Flowise self-hosted
-npm install -g flowise
-flowise start --PORT=3000
-# Luego importa el JSON desde la UI
-```
-
-### Paso 4: Verificar el chatbot en Flowise
-
-Prueba estas consultas en el chat interno de Flowise:
-
-1. `"Hola, estoy en Medellín"` → debe pedir más datos
-2. `"Somos 5 personas"` → debe pedir método
-3. `"Tengo airfryer"` → debe pedir ocasión
-4. `"Es almuerzo familiar"` → debe recomendar producto con receta
-5. `"Estoy en Cali"` → debe indicar sin cobertura y terminar
-
-### Paso 5: Actualizar el chatflowid en la landing
-
-En `friko_recomienda_landing_v2.html`, línea con `chatflowid`, reemplaza el UUID por el ID real de tu chatflow en Flowise Cloud:
-
-```javascript
-chatflowid: "TU-CHATFLOW-ID-REAL",
-apiHost: "https://cloud.flowiseai.com",  // o tu URL self-hosted
-```
-
-### Paso 6: Deploy de la landing
-
-La landing es un archivo HTML estático. Puedes hospedarla en:
-- **Vercel:** `vercel --prod` o drag-and-drop en vercel.com
-- **Netlify:** Drag-and-drop del archivo en netlify.com
-- **Cloudflare Pages:** Git-connected o direct upload
-- **Supabase Storage:** Como asset público con URL custom
-
----
-
-## 🔧 CONFIGURACIÓN DE VARIABLES DE ENTORNO
-
-| Variable | Dónde configurar | Valor |
+| Dato | Descripción | Ejemplo |
 |---|---|---|
-| `OPENAI_API_KEY` | Flowise Credentials + seed_documents.py | `sk-...` |
-| `GROQ_API_KEY` | Flowise Credentials | `gsk_...` |
-| `SUPABASE_URL` | Flowise Credentials + seed_documents.py | `https://xxx.supabase.co` |
-| `SUPABASE_ANON_KEY` | Flowise Credentials | `eyJ...` (anon) |
-| `SUPABASE_SERVICE_KEY` | seed_documents.py ÚNICAMENTE | `eyJ...` (service_role) |
+| Región o ciudad | Determina qué productos están disponibles | Medellín → Antioquia |
+| Número de personas | Valida el rendimiento del producto | 4 personas |
+| Método de preparación | Filtra por técnica de cocción | Airfryer |
+| Ocasión | Adapta la recomendación al contexto | Cena rápida |
 
-**⚠️ NUNCA expongas la `service_role` key en el frontend.**
+Con esos 4 datos, el motor RAG busca semánticamente en el catálogo de productos, aplica un scoring interno y entrega la recomendación con receta.
 
----
-
-## 🧪 EJEMPLO REAL DE CONVERSACIÓN
+**Canales disponibles:**
 
 ```
-Bot: ¡Hola! Soy Friko Recomienda 🍗
-     Te ayudo a encontrar el producto Friko o Antillana perfecto y te doy la receta.
-     ¿En qué región o ciudad estás?
-
-User: Bucaramanga
-
-Bot: Bucaramanga está en Santander ✅
-     ¿Cuántas personas van a comer?
-
-User: Somos 4
-
-Bot: ¿Cómo prefieres preparar la comida?
-     Sartén · Horno · Parrilla · Airfryer · Plancha · Wok · Salteado
-
-User: Sartén, es una cena rápida
-
-Bot: 🏆 **Mini chuzos** — Friko
-     📍 Santander · 👥 2–3 personas · 🍳 Sartén, Airfryer
-     _El más práctico para cena rápida entre semana — va directo al sartén sin descongelar._
-
-     📖 **Mini chuzos en salsa de ajo y cilantro** · ⏱️ 20 min · 🍽️ 4 personas
-
-     **Ingredientes:**
-     - 2 paquetes Mini chuzos Friko (540g)
-     - 3 dientes de ajo picado
-     - 1/4 taza cilantro fresco
-     - 2 cdas mantequilla
-     - Sal y pimienta al gusto
-
-     **Preparación:**
-     1. Calienta el sartén a fuego medio-alto con la mantequilla.
-     2. Agrega los mini chuzos congelados directo, cocina 5 min por lado.
-     3. Añade el ajo picado y sofríe 2 min hasta dorar.
-     4. Finaliza con cilantro fresco y ajusta sal.
-     5. Sirve inmediatamente con arroz blanco.
-
-     💡 _Con 4 personas y 2 paquetes, calcular 2-3 chuzos por persona._
-     🔄 Alternativa: **Nuggets de pollo Friko** si prefieres algo más clásico para los niños
-
-     🤖 Receta sugerida por IA
-
-     ---
-     ¿Qué quieres hacer ahora?
-     👉 1. Ver otra receta con este producto
-     👉 2. Recomendar otro producto Friko
+┌─────────────────────────────────────────────────┐
+│  Canal Web   → frikorecomienda.netlify.app      │
+│  Telegram    → @friko_recomienda_bot            │
+│                                                 │
+│  Ambos comparten el mismo motor RAG (Flowise)   │
+└─────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✅ CHECKLIST DE VALIDACIÓN ANTES DE PRODUCCIÓN
+## 2. Arquitectura del sistema
 
-- [ ] `match_documents` RPC existe y retorna resultados en Supabase
-- [ ] Índice HNSW creado en tabla `documents`
-- [ ] `seed_documents.py` ejecutado con éxito (99 docs sin embedding null)
-- [ ] Chatflow importado en Flowise con credenciales configuradas
-- [ ] Prueba multi-turno: el chain no rompe en el 2do mensaje
-- [ ] Prueba región inválida (Cali): bot responde correctamente y cierra
-- [ ] Prueba ciudad desconocida: bot pregunta el departamento
-- [ ] Prueba "sorpréndeme": bot recomienda sin pedir más datos (usa los ya dados)
-- [ ] `chatflowid` real reemplazado en la landing
-- [ ] Consent modal funciona y checkbox no tiene double-toggle bug
-- [ ] Landing carga el chatbot SOLO después del consent
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        CANALES DE ENTRADA                        │
+│                                                                  │
+│   🌐 Landing Page (Netlify)        📱 Telegram Bot.               │
+│   Flowise Embed SDK                n8n Workflow                  │
+│   (HTML estático)                  (22 nodos)                    │
+└────────────────┬────────────────────────┬────────────────────────┘
+                 │                        │
+                 │  HTTP POST             │  HTTP POST
+                 │  Prediction API        │  + overrideConfig
+                 │                        │  + sessionId
+                 ▼                        ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    MOTOR RAG — Flowise Cloud                    │
+│                                                                 │
+│  ConversationalRetrievalQAChain                                 │
+│  ┌─────────────┐  ┌──────────────────┐  ┌───────────────────┐   │
+│  │ Rephrase    │  │ OpenAI Embeddings│  │  Supabase         │   │
+│  │ Prompt      │→ │ text-embed-3-    │→ │  pgvector         │   │
+│  │(openAI LLM) │  │ small            │  │  tabla: documents │   │
+│  └─────────────┘  └──────────────────┘  │  topK: 10         │   │
+│                                         └─────────┬─────────┘   │
+│  ┌─────────────────────────────────────────────── ▼ ──────────┐ │
+│  │  Response Prompt (openAI LLM)                              │ │
+│  │  Scoring: +50 región · +25 método · +15 personas · +10 ocas│ │
+│  │  Genera: producto recomendado + receta paso a paso         │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                       Buffer Memory (chat_history)              │
+└─────────────────────────────────────────────────────────────────┘
+
+                    Componente exclusivo del canal Telegram:
+┌──────────────────────────────────────────────────────────────────┐
+│                    n8n — Gestión de Sesiones                     │
+│  Telegram Trigger → Groq NLP → Supabase Sessions → Switch(6) →   │
+│  [bienvenida | sin cobertura | rate limit | pedir campo |        │
+│   confirmación | llamar RAG]                                     │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 📊 CAMBIOS v1 → v2 (RESUMEN)
+## 3. Stack tecnológico
 
-| Componente | Cambio | Razón |
+| Capa | Tecnología | Detalle |
 |---|---|---|
-| **rephrasePrompt** | Añadidos `{chat_history}` y `{question}` | BUG-01: chain roto en follow-ups |
-| **SQL** | Añadida función `match_documents` | BUG-02: pgvector no funcionaba |
-| **SQL** | Índices HNSW en columnas embedding | BUG-03: búsquedas O(n) |
-| **Prompt** | Añadido "Salteado" a métodos válidos | BUG-04: ANTI-002 nunca se recomendaba |
-| **Flowise topK** | 5 → 10 | BUG-06: perdía productos relevantes |
-| **Flowise temp** | 0.3 → 0.55 | BUG-13: recetas repetitivas |
-| **Landing** | Features falsas eliminadas y reemplazadas | BUG-07: inconsistencia promesa/realidad |
-| **Landing** | Sección legal HTML añadida | BUG-08: CSS definido sin HTML |
-| **Landing** | CTAs abren el chatbot | BUG-09: botón iba a demo estático |
-| **Landing** | Double-toggle del checkbox corregido | BUG-10: checkbox no cambiaba |
-| **Schema** | `Bogota` → `Bogotá` (con tilde) | BUG-12: filtros fallaban |
-| **seed_documents.py** | Script de seed del catálogo | Nuevo: proceso de carga del RAG |
+| **Frontend** | HTML / CSS / JS vanilla | Landing page estática |
+| **Deploy web** | Netlify | `frikorecomienda.netlify.app` |
+| **Chat web** | Flowise Embed SDK | `cdn.jsdelivr.net/npm/flowise-embed` |
+| **Bot Telegram** | Telegram Bot API v6 | Webhook hacia n8n |
+| **Orquestación bot** | n8n Cloud | Workflow de 22 nodos |
+| **NLP extracción** | Groq API | `gpt-4.1-mini`, temp 0 |
+| **Generación LLM** | OpenAI + Flowise | `gpt-4.1-mini`, temp 0.55 |
+| **Embeddings** | OpenAI API | `text-embedding-3-small` |
+| **Vector store** | Supabase pgvector | Tabla `documents`, RPC `match_documents` |
+| **Sesiones bot** | Supabase REST | Tabla `bot_sessions`, TTL 30 min |
+| **Motor RAG** | Flowise Cloud | ChatflowV3, `610c56f2-d7b9-43ea-8c48-b62f18570416` |
+
+---
+
+## 4. Componentes y repositorios
+
+El sistema está compuesto por **3 artefactos desplegables**:
+
+```
+friko-recomienda/
+│
+├── 📄 index.html                    # Landing page completa (un solo archivo)
+│   └── Deploy: Netlify
+│
+├── 🤖 FrikoRAGPipeline_ChatflowV3   # Motor RAG exportado desde Flowise
+│   └── Deploy: Flowise Cloud
+│   └── Archivo: FrikoRAGPipeline_ChatflowV3_Chatflow.json
+│
+└── ⚙️  Friko_Chef_Bot_v6            # Workflow del bot de Telegram
+    └── Deploy: n8n Cloud
+    └── Archivo: Friko_Chef_Bot_v6_Telegram_Groq_NLP_Supabase_Sessions_Flowise_RAG.json
+```
+
+---
+ 
+## 5. Requisitos previos
+ 
+Para usar el sistema no se requiere instalación ni registro. El acceso está disponible de forma inmediata a través de los dos canales:
+ 
+| Canal | Requisito |
+|---|---|
+| **Web** | Navegador moderno con conexión a internet |
+| **Telegram** | App de Telegram instalada (iOS, Android o escritorio) |
+ 
+---
+
+## 6. Cómo acceder al sistema
+ 
+### Canal Web
+ 
+Accede directamente desde el navegador:
+ 
+**[https://frikorecomienda.netlify.app](https://frikorecomienda.netlify.app)**
+ 
+1. Haz clic en **"Hablar en la web"** — el chat se abre como widget flotante en la misma página.
+2. Escribe tu mensaje en el campo de texto y presiona enviar.
+3. El asistente guiará la conversación solicitando los datos necesarios de a uno.
+> No se requiere crear cuenta ni iniciar sesión.
+ 
+### Canal Telegram
+ 
+Accede desde cualquier dispositivo con Telegram instalado:
+ 
+**[https://t.me/friko_recomienda_bot](https://t.me/friko_recomienda_bot)**
+ 
+1. Abre el enlace o busca `@friko_recomienda_bot` en Telegram.
+2. Presiona **Iniciar** o envía `/start` para comenzar.
+3. Sigue el flujo conversacional — el bot pedirá un dato a la vez.
+### Comparación de canales
+ 
+| Aspecto | Web | Telegram |
+|---|---|---|
+| Acceso | Navegador, sin instalar | App Telegram instalada |
+| Ideal para | Computador o tablet | Celular |
+| Historial | Solo durante la sesión abierta | Guardado en tu app de Telegram |
+| Iniciar de nuevo | Recargar la página | Enviar `/nuevo` |
+ 
+---
+
+## 7. Uso del sistema
+
+### Canal Web
+
+1. Abrir [https://frikorecomienda.netlify.app](https://frikorecomienda.netlify.app).
+2. Hacer clic en **"Hablar en la web"** para abrir el widget de chat.
+3. Escribir el mensaje — el asistente pedirá los 4 datos necesarios.
+
+### Canal Telegram
+
+1. Abrir [@friko_recomienda_bot](https://t.me/friko_recomienda_bot) en Telegram.
+2. Enviar `/start` o `/nuevo` para iniciar una conversación.
+3. Seguir el flujo conversacional guiado.
+
+### Comandos disponibles en Telegram
+
+| Comando | Acción |
+|---|---|
+| `/start` | Inicia o reinicia el asistente |
+| `/nuevo` | Reinicia la sesión actual |
+| `/reset` | Limpia todos los datos y vuelve al inicio |
+| `/iniciar` | Alias de `/start` |
+| `/reiniciar` | Alias de `/reset` |
+
+### Ejemplo de conversación
+
+```
+Usuario:  "Medellín, somos 5, tengo sartén"
+
+Bot:      Medellín → Antioquia ✅
+          ¿Cuál es la ocasión?
+          Almuerzo · Reunión familiar · Cena rápida · Picada · Asado
+
+Usuario:  "Cena rápida entre semana"
+
+Bot:      🏆 Filete de pechuga — Friko
+          📍 Antioquia · 👥 4–6 personas · 🍳 Sartén, Plancha
+
+          📖 Pechuga al limón con ajo y cilantro · ⏱️ 20 min · 🍽️ 5 porciones
+          [receta completa paso a paso...]
+
+          💡 Sazónala 10 min antes con limón para más sabor.
+          🤖 Receta sugerida por IA
+```
+
+---
+
+## 8. Flujo de datos
+
+### Canal Web (simplificado)
+
+```
+Usuario escribe → Flowise Embed SDK → Prediction API → RAG → Respuesta
+```
+
+El widget de Flowise maneja el flujo completo internamente: rephrase, embeddings, búsqueda vectorial, scoring y generación.
+
+### Canal Telegram (completo)
+
+```
+1. Usuario escribe en Telegram
+2. Telegram → n8n webhook
+3. n8n: Parse mensaje + construir body Groq
+4. ¿Es comando? → Sí: skip Groq | No: Groq extrae 4 entidades (temp=0, json_object)
+5. Supabase: recuperar sesión (TTL 30 min)
+6. Merge State: normalizar región + rate limit + merge + calcular step
+7. Supabase: guardar sesión actualizada
+8. Switch(6 ramas):
+   ├── welcome          → Mensaje de bienvenida
+   ├── no_coverage      → Ciudad sin cobertura
+   ├── rate_limited     → Límite de velocidad
+   ├── ask_question     → Pedir campo faltante (con progreso)
+   ├── show_confirmation→ Mostrar resumen para confirmar
+   └── send_to_rag      →
+        9. Telegram: sendChatAction = typing
+       10. Build Flowise query + supabaseMetadataFilter{region}
+       11. Flowise Prediction API (timeout 90s)
+       12. Markdown → Telegram HTML
+       13. Enviar respuesta
+```
+
+### Scoring interno del RAG
+
+El LLM aplica el siguiente scoring a cada producto recuperado (nunca visible al usuario):
+
+```
++50  Región del producto coincide con la del usuario
++25  El método de preparación solicitado está disponible
++15  El número de personas está dentro del rango del producto
++10  La categoría del producto es adecuada para la ocasión
+────
+100  Puntaje máximo posible
+```
+
+---
+ 
+## 9. Comportamiento y límites del sistema
+ 
+### Cobertura regional
+ 
+El asistente opera en **6 regiones de Colombia**. Cuando el usuario menciona su ciudad, el sistema la mapea automáticamente a la región correspondiente. Si la ciudad no tiene cobertura, el bot lo informa de inmediato sin hacer una recomendación.
+ 
+| Región | Ciudades principales |
+|---|---|
+| Antioquia | Medellín, Bello, Itagüí, Envigado, Rionegro |
+| Atlántico | Barranquilla, Soledad, Malambo |
+| Bogotá | Bogotá D.C., Soacha, Chía, Zipaquirá |
+| Eje Cafetero | Pereira, Armenia, Manizales, Dosquebradas |
+| Norte de Santander | Cúcuta, Villa del Rosario, Ocaña |
+| Santander | Bucaramanga, Floridablanca, Girón, Piedecuesta |
+ 
+### Sesiones en Telegram
+ 
+La conversación en Telegram mantiene el progreso del usuario entre mensajes durante **30 minutos** de inactividad. Pasado ese tiempo, el bot comienza una sesión nueva. Para reiniciar manualmente en cualquier momento, basta con enviar `/nuevo`.
+ 
+### Velocidad de respuesta
+ 
+El asistente responde en segundos para preguntas de recolección de datos. La recomendación final (que consulta el catálogo completo y genera la receta) puede tardar hasta **30 segundos** dependiendo del estado del servicio.
+ 
+### Correcciones durante la conversación
+ 
+Si el usuario quiere cambiar un dato que ya proporcionó, puede indicarlo con expresiones como:
+ 
+> *"en realidad estoy en Bogotá"*, *"mejor para 6 personas"*, *"cambia el método a horno"*
+ 
+El asistente detecta la intención de corrección y actualiza el dato sin necesidad de reiniciar la conversación.
+ 
+### Límite de velocidad (Telegram)
+ 
+El bot acepta máximo **2 mensajes en 5 segundos** por usuario. Si se supera ese límite, responde con un aviso para esperar unos segundos antes de continuar.
+ 
+---
+ 
+## 10. Preguntas frecuentes
+ 
+**¿Necesito crear una cuenta para usar el asistente?**
+No. El acceso es inmediato tanto en la web como en Telegram, sin registro ni datos personales.
+ 
+**¿Puedo pedir varios datos en un solo mensaje?**
+Sí. Si escribes por ejemplo *"Medellín, somos 5, tengo airfryer"*, el asistente extrae los tres datos de una vez y solo pregunta lo que falte.
+ 
+**¿Qué pasa si mi ciudad no tiene cobertura?**
+El asistente te informa cuáles son las 6 regiones disponibles y te invita a intentar con otra ubicación o a visitar [momentosfriko.com](https://www.momentosfriko.com).
+ 
+**¿Las recetas son oficiales de Friko?**
+El asistente prioriza recetas oficiales de [momentosfriko.com](https://www.momentosfriko.com). Si no encuentra una receta oficial para el producto recomendado, genera una con IA e indica claramente el origen con el texto *🤖 Receta sugerida por IA*.
+ 
+**¿Puedo pedir otra recomendación después de recibir una?**
+Sí. Después de cada respuesta puedes escribir *"dame otra opción"* o *"quiero otra receta"* para recibir una alternativa diferente. También puedes iniciar una consulta completamente nueva con `/nuevo` en Telegram o recargando la página en la web.
+ 
+**¿El asistente recuerda conversaciones anteriores?**
+En Telegram, el historial se conserva visualmente en la app pero la sesión activa se reinicia tras 30 minutos de inactividad. En la web, el historial solo persiste mientras el widget de chat esté abierto en la misma pestaña del navegador.
+ 
+---
+*Proyecto desarrollado para Friko y Antillana — Grupo BIOS · Colombia 🇨🇴*
