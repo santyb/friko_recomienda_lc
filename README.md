@@ -7,9 +7,9 @@
 **Bot de Telegram:** [@friko_recomienda_bot](https://t.me/friko_recomienda_bot)
 
 ---
- 
+
 ## Índice
- 
+
 1. [Descripción general](#1-descripción-general)
 2. [Arquitectura del sistema](#2-arquitectura-del-sistema)
 3. [Stack tecnológico](#3-stack-tecnológico)
@@ -20,11 +20,12 @@
 8. [Flujo de datos](#8-flujo-de-datos)
 9. [Comportamiento y límites del sistema](#9-comportamiento-y-límites-del-sistema)
 10. [Preguntas frecuentes](#10-preguntas-frecuentes)
+
 ---
 
 ## 1. Descripción general
 
-**Friko Recomienda** es un sistema de inteligencia artificial conversacional que guía al usuario en la elección del producto Friko o Antillana ideal y le entrega la receta completa para prepararlo.
+**Friko Recomienda** es un sistema de inteligencia artificial conversacional que guía al usuario colombiano en la elección del producto Friko o Antillana ideal y le entrega la receta completa para prepararlo.
 
 El sistema recopila **4 datos del usuario** de forma conversacional:
 
@@ -56,34 +57,15 @@ Con esos 4 datos, el motor RAG busca semánticamente en el catálogo de producto
 ┌──────────────────────────────────────────────────────────────────┐
 │                        CANALES DE ENTRADA                        │
 │                                                                  │
-│   🌐 Landing Page (Netlify)        📱 Telegram Bot.               │
+│   🌐 Landing Page (Netlify)        📱 Telegram Bot                │
 │   Flowise Embed SDK                n8n Workflow                  │
-│   (HTML estático)                  (22 nodos)                    │
+│   (HTML estático)                  (14 nodos)                    │
 └────────────────┬────────────────────────┬────────────────────────┘
-                 │                        │
-                 │  HTTP POST             │  HTTP POST
-                 │  Prediction API        │  + overrideConfig
-                 │                        │  + sessionId
-                 ▼                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    MOTOR RAG — Flowise Cloud                    │
-│                                                                 │
-│  ConversationalRetrievalQAChain                                 │
-│  ┌─────────────┐  ┌──────────────────┐  ┌───────────────────┐   │
-│  │ Rephrase    │  │ OpenAI Embeddings│  │  Supabase         │   │
-│  │ Prompt      │→ │ text-embed-3-    │→ │  pgvector         │   │
-│  │(openAI LLM) │  │ small            │  │  tabla: documents │   │
-│  └─────────────┘  └──────────────────┘  │  topK: 10         │   │
-│                                         └─────────┬─────────┘   │
-│  ┌─────────────────────────────────────────────── ▼ ──────────┐ │
-│  │  Response Prompt (openAI LLM)                              │ │
-│  │  Scoring: +50 región · +25 método · +15 personas · +10 ocas│ │
-│  │  Genera: producto recomendado + receta paso a paso         │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                       Buffer Memory (chat_history)              │
-└─────────────────────────────────────────────────────────────────┘
-
-                    Componente exclusivo del canal Telegram:
+                 │                        │                        
+                 │  Flowise Embed SDK     │  HTTP POST             
+                 │  (directo)             │  Prediction API        
+                 │                        │  + sessionId           
+                 ▼                        ▼                        
 ┌──────────────────────────────────────────────────────────────────┐
 │                    n8n — Gestión de Sesiones                     │
 │  Telegram Trigger → Groq NLP → Supabase Sessions → Switch(6) →   │
@@ -107,7 +89,6 @@ Con esos 4 datos, el motor RAG busca semánticamente en el catálogo de producto
 | **Generación LLM** | OpenAI + Flowise | `gpt-4.1-mini`, temp 0.55 |
 | **Embeddings** | OpenAI API | `text-embedding-3-small` |
 | **Vector store** | Supabase pgvector | Tabla `documents`, RPC `match_documents` |
-| **Sesiones bot** | Supabase REST | Tabla `bot_sessions`, TTL 30 min |
 | **Motor RAG** | Flowise Cloud | ChatflowV3, `610c56f2-d7b9-43ea-8c48-b62f18570416` |
 
 ---
@@ -119,20 +100,20 @@ El sistema está compuesto por **3 artefactos desplegables**:
 ```
 friko-recomienda/
 │
-├── 📄 index.html                    # Landing page completa (un solo archivo)
+├── 📄 index.html                          # Landing page (un solo archivo)
 │   └── Deploy: Netlify
 │
-├── 🤖 FrikoRAGPipeline_ChatflowV3   # Motor RAG exportado desde Flowise
+├── 🤖 FrikoRAGPipeline_ChatflowV3         # Motor RAG exportado desde Flowise
 │   └── Deploy: Flowise Cloud
 │   └── Archivo: FrikoRAGPipeline_ChatflowV3_Chatflow.json
 │
-└── ⚙️  Friko_Chef_Bot_v6            # Workflow del bot de Telegram
+└── ⚙️  Friko_Chef_Bot n8n               # Workflow del bot de Telegram (versión actual)
     └── Deploy: n8n Cloud
-    └── Archivo: Friko_Chef_Bot_v6_Telegram_Groq_NLP_Supabase_Sessions_Flowise_RAG.json
+    └── Archivo: Friko Recomienda Bot - Telegram + Flowise RAG.json
 ```
 
 ---
- 
+
 ## 5. Requisitos previos
  
 Para usar el sistema no se requiere instalación ni registro. El acceso está disponible de forma inmediata a través de los dos canales:
@@ -141,15 +122,13 @@ Para usar el sistema no se requiere instalación ni registro. El acceso está di
 |---|---|
 | **Web** | Navegador moderno con conexión a internet |
 | **Telegram** | App de Telegram instalada (iOS, Android o escritorio) |
- 
+
 ---
 
 ## 6. Cómo acceder al sistema
- 
+
 ### Canal Web
- 
-Accede directamente desde el navegador:
- 
+
 **[https://frikorecomienda.netlify.app](https://frikorecomienda.netlify.app)**
  
 1. Haz clic en **"Hablar en la web"** — el chat se abre como widget flotante en la misma página.
@@ -158,23 +137,21 @@ Accede directamente desde el navegador:
 > No se requiere crear cuenta ni iniciar sesión.
  
 ### Canal Telegram
- 
-Accede desde cualquier dispositivo con Telegram instalado:
- 
+
 **[https://t.me/friko_recomienda_bot](https://t.me/friko_recomienda_bot)**
- 
+
 1. Abre el enlace o busca `@friko_recomienda_bot` en Telegram.
 2. Presiona **Iniciar** o envía `/start` para comenzar.
 3. Sigue el flujo conversacional — el bot pedirá un dato a la vez.
 ### Comparación de canales
- 
+
 | Aspecto | Web | Telegram |
 |---|---|---|
 | Acceso | Navegador, sin instalar | App Telegram instalada |
 | Ideal para | Computador o tablet | Celular |
-| Historial | Solo durante la sesión abierta | Guardado en tu app de Telegram |
-| Iniciar de nuevo | Recargar la página | Enviar `/nuevo` |
- 
+| Historial | Durante la sesión abierta | Visible en Telegram (in-memory en Flowise) |
+| Reiniciar | Recargar la página | Enviar `/nuevo` |
+
 ---
 
 ## 7. Uso del sistema
@@ -195,11 +172,13 @@ Accede desde cualquier dispositivo con Telegram instalado:
 
 | Comando | Acción |
 |---|---|
-| `/start` | Inicia o reinicia el asistente |
-| `/nuevo` | Reinicia la sesión actual |
-| `/reset` | Limpia todos los datos y vuelve al inicio |
+| `/start` | Muestra el mensaje de bienvenida |
+| `/nuevo` | Reinicia con mensaje de bienvenida |
+| `/reset` | Alias de `/nuevo` |
 | `/iniciar` | Alias de `/start` |
 | `/reiniciar` | Alias de `/reset` |
+
+> Los comandos muestran la bienvenida sin llamar al RAG. El historial de conversación en Flowise no se limpia con estos comandos — para eso el usuario debe iniciar una nueva sesión.
 
 ### Ejemplo de conversación
 
@@ -226,7 +205,7 @@ Bot:      🏆 Filete de pechuga — Friko
 
 ## 8. Flujo de datos
 
-### Canal Web (simplificado)
+### Canal Web
 
 ```
 Usuario escribe → Flowise Embed SDK → Prediction API → RAG → Respuesta
@@ -234,29 +213,52 @@ Usuario escribe → Flowise Embed SDK → Prediction API → RAG → Respuesta
 
 El widget de Flowise maneja el flujo completo internamente: rephrase, embeddings, búsqueda vectorial, scoring y generación.
 
-### Canal Telegram (completo)
+### Canal Telegram — Workflow 
 
 ```
 1. Usuario escribe en Telegram
-2. Telegram → n8n webhook
-3. n8n: Parse mensaje + construir body Groq
-4. ¿Es comando? → Sí: skip Groq | No: Groq extrae 4 entidades (temp=0, json_object)
-5. Supabase: recuperar sesión (TTL 30 min)
-6. Merge State: normalizar región + rate limit + merge + calcular step
-7. Supabase: guardar sesión actualizada
-8. Switch(6 ramas):
-   ├── welcome          → Mensaje de bienvenida
-   ├── no_coverage      → Ciudad sin cobertura
-   ├── rate_limited     → Límite de velocidad
-   ├── ask_question     → Pedir campo faltante (con progreso)
-   ├── show_confirmation→ Mostrar resumen para confirmar
-   └── send_to_rag      →
-        9. Telegram: sendChatAction = typing
-       10. Build Flowise query + supabaseMetadataFilter{region}
-       11. Flowise Prediction API (timeout 90s)
-       12. Markdown → Telegram HTML
-       13. Enviar respuesta
+2. Telegram → n8n webhook  (event: message)
+3. Code: Parse Message
+      · Extrae: chatId, firstName, msgText, isText, isCommand
+      · El mensaje se pasa tal cual al RAG — sin Groq NLP intermedio
+4. IF: Valid Text?
+      · false → Telegram: Solo Texto → FIN
+      · true  → continúa
+5. IF: Is Command? (/start /nuevo /reset /iniciar /reiniciar)
+      · true  → Switch: Router [bienvenida] → Telegram: Bienvenida → FIN
+      · false → Switch: Router [RAG]
+6. HTTP: Telegram Typing  (sendChatAction = "typing")
+7. Code: Build Flowise Query
+      · Payload: { question: msgText, sessionId: "tg_{chatId}" }
+8. HTTP: Call Flowise RAG  (timeout 90s)
+      · POST /api/v1/prediction/{chatflowId}
+      · El RAG gestiona: slot-filling, región, validación, scoring y receta
+9. Code: Process Response
+      · Markdown → Telegram HTML
+      · Detecta errores por status >= 400 o respuesta vacía
+10. IF: Success?
+      · true  → Telegram: Enviar Receta  (HTML, parse_mode: HTML)
+      · false → Telegram: Enviar Error   (aviso + instrucción /nuevo)
 ```
+
+### Nodos del workflow v9.1
+
+| # | Nodo | Tipo | Función |
+|---|---|---|---|
+| 1 | Telegram Trigger | telegramTrigger | Punto de entrada — webhook de Telegram |
+| 2 | Code: Parse Message | code | Extrae chatId, msgText, isCommand |
+| 3 | IF: Valid Text? | if | Filtra mensajes que no son texto |
+| 4 | Telegram: Solo Texto | telegram | Aviso cuando el mensaje no es texto |
+| 5 | IF: Is Command? | if | Detecta comandos de reset |
+| 6 | Switch: Router | switch | 2 ramas: bienvenida o RAG |
+| 7 | Telegram: Bienvenida | telegram | Mensaje de bienvenida |
+| 8 | HTTP: Telegram Typing | httpRequest | Indicador "escribiendo..." |
+| 9 | Code: Build Flowise Query | code | Construye el payload para Flowise |
+| 10 | HTTP: Call Flowise RAG | httpRequest | Llama a la Prediction API (90s timeout) |
+| 11 | Code: Process Response | code | Markdown → Telegram HTML, detecta errores |
+| 12 | IF: Success? | if | Bifurca éxito vs error |
+| 13 | Telegram: Enviar Receta | telegram | Entrega la receta al usuario |
+| 14 | Telegram: Enviar Error | telegram | Aviso de error con instrucción /nuevo |
 
 ### Scoring interno del RAG
 
@@ -272,9 +274,9 @@ El LLM aplica el siguiente scoring a cada producto recuperado (nunca visible al 
 ```
 
 ---
- 
+
 ## 9. Comportamiento y límites del sistema
- 
+
 ### Cobertura regional
  
 El asistente opera en **6 regiones de Colombia**. Cuando el usuario menciona su ciudad, el sistema la mapea automáticamente a la región correspondiente. Si la ciudad no tiene cobertura, el bot lo informa de inmediato sin hacer una recomendación.
@@ -287,48 +289,43 @@ El asistente opera en **6 regiones de Colombia**. Cuando el usuario menciona su 
 | Eje Cafetero | Pereira, Armenia, Manizales, Dosquebradas |
 | Norte de Santander | Cúcuta, Villa del Rosario, Ocaña |
 | Santander | Bucaramanga, Floridablanca, Girón, Piedecuesta |
- 
-### Sesiones en Telegram
- 
-La conversación en Telegram mantiene el progreso del usuario entre mensajes durante **30 minutos** de inactividad. Pasado ese tiempo, el bot comienza una sesión nueva. Para reiniciar manualmente en cualquier momento, basta con enviar `/nuevo`.
- 
+
+### Gestión de sesiones en Telegram
+
+Las sesiones son gestionadas por el **Buffer Memory de Flowise** mediante el `sessionId = "tg_{chatId}"`. El historial persiste en memoria RAM mientras el servicio esté activo. Los comandos de reset muestran la bienvenida pero no limpian el historial de Flowise.
+
 ### Velocidad de respuesta
- 
-El asistente responde en segundos para preguntas de recolección de datos. La recomendación final (que consulta el catálogo completo y genera la receta) puede tardar hasta **30 segundos** dependiendo del estado del servicio.
- 
+
+Preguntas de recolección de datos responden en segundos. La recomendación final puede tardar hasta **30 segundos** dependiendo del estado del servicio de Flowise.
+
 ### Correcciones durante la conversación
- 
-Si el usuario quiere cambiar un dato que ya proporcionó, puede indicarlo con expresiones como:
- 
-> *"en realidad estoy en Bogotá"*, *"mejor para 6 personas"*, *"cambia el método a horno"*
- 
-El asistente detecta la intención de corrección y actualiza el dato sin necesidad de reiniciar la conversación.
- 
-### Límite de velocidad (Telegram)
- 
-El bot acepta máximo **2 mensajes en 5 segundos** por usuario. Si se supera ese límite, responde con un aviso para esperar unos segundos antes de continuar.
- 
+
+El usuario puede corregir un dato ya proporcionado escribiendo naturalmente:
+
+> *"en realidad estoy en Bogotá"*, *"mejor para 6 personas"*, *"cambia a horno"*
+
+El RAG detecta la corrección usando el historial del Buffer Memory.
+
 ---
- 
+
 ## 10. Preguntas frecuentes
- 
-**¿Necesito crear una cuenta para usar el asistente?**
-No. El acceso es inmediato tanto en la web como en Telegram, sin registro ni datos personales.
- 
-**¿Puedo pedir varios datos en un solo mensaje?**
-Sí. Si escribes por ejemplo *"Medellín, somos 5, tengo airfryer"*, el asistente extrae los tres datos de una vez y solo pregunta lo que falte.
- 
+
+**¿Necesito crear una cuenta?**
+No. Sin registro en ambos canales.
+
+**¿Puedo dar todos los datos en un solo mensaje?**
+Sí. *"Medellín, somos 5, airfryer, cena rápida"* → el RAG extrae los cuatro datos y recomienda directamente.
+
 **¿Qué pasa si mi ciudad no tiene cobertura?**
-El asistente te informa cuáles son las 6 regiones disponibles y te invita a intentar con otra ubicación o a visitar [momentosfriko.com](https://www.momentosfriko.com).
- 
+El RAG informa que la ciudad no está cubierta, lista las 6 regiones disponibles y sugiere visitar [momentosfriko.com](https://www.momentosfriko.com).
+
 **¿Las recetas son oficiales de Friko?**
-El asistente prioriza recetas oficiales de [momentosfriko.com](https://www.momentosfriko.com). Si no encuentra una receta oficial para el producto recomendado, genera una con IA e indica claramente el origen con el texto *🤖 Receta sugerida por IA*.
- 
-**¿Puedo pedir otra recomendación después de recibir una?**
-Sí. Después de cada respuesta puedes escribir *"dame otra opción"* o *"quiero otra receta"* para recibir una alternativa diferente. También puedes iniciar una consulta completamente nueva con `/nuevo` en Telegram o recargando la página en la web.
- 
+El asistente prioriza recetas de [momentosfriko.com](https://www.momentosfriko.com). Si no hay una receta oficial, genera una con IA e indica el origen con *🤖 Receta sugerida por IA*.
+
+**¿Puedo pedir otra recomendación?**
+Sí. Escribe *"dame otra opción"* o *"recomiéndame otro producto"* y el RAG entrega una alternativa usando el historial de conversación.
+
 **¿El asistente recuerda conversaciones anteriores?**
-En Telegram, el historial se conserva visualmente en la app pero la sesión activa se reinicia tras 30 minutos de inactividad. En la web, el historial solo persiste mientras el widget de chat esté abierto en la misma pestaña del navegador.
- 
----
+Solo dentro de la sesión activa (Buffer Memory de Flowise). Si el servidor se reinicia, el historial se pierde.
+
 *Proyecto desarrollado para Friko y Antillana — Grupo BIOS · Colombia 🇨🇴*

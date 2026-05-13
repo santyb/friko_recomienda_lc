@@ -1,25 +1,11 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
-CREATE TABLE public.bot_sessions (
-  chat_id text NOT NULL,
-  session jsonb NOT NULL DEFAULT '{}'::jsonb,
-  updated_at timestamp with time zone DEFAULT now(),
-  expires_at timestamp with time zone DEFAULT (now() + '00:30:00'::interval),
-  CONSTRAINT bot_sessions_pkey PRIMARY KEY (chat_id)
-);
 CREATE TABLE public.categorias (
   id bigint NOT NULL DEFAULT nextval('categorias_id_seq'::regclass),
   nombre text NOT NULL UNIQUE,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT categorias_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.chat_messages (
-  id bigint NOT NULL DEFAULT nextval('chat_messages_id_seq'::regclass),
-  session_id text NOT NULL,
-  message jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT chat_messages_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.documents (
   id bigint NOT NULL DEFAULT nextval('documents_id_seq'::regclass),
