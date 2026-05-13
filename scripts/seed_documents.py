@@ -22,7 +22,7 @@ OPENAI_API_KEY  = os.environ["OPENAI_API_KEY"]
 SUPABASE_URL    = os.environ["SUPABASE_URL_DB"]
 SUPABASE_KEY    = os.environ["SUPABASE_SERVICE_KEY_DB"]  # service_role key
 EMBED_MODEL     = "text-embedding-3-small"    # DEBE coincidir con Flowise
-CATALOG_PATH    = "Data_Limpia_Entrega_1_Catalogo_FRIKO_ANTILLANA.xlsx"
+CATALOG_PATH    = os.path.join(os.path.dirname(__file__), "..", "data", "catalogo_productos.xlsx")
 BATCH_SIZE      = 20  # docs por batch de embedding
 
 openai_client  = OpenAI(api_key=OPENAI_API_KEY)

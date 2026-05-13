@@ -1,4 +1,36 @@
-# Ignore ENV
-
+# ── Environment & Secrets ─────────────────────────────────────
+.env
+.env.*
+!.env.example
 env/
 secrets.txt
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.Python
+
+# ── macOS ─────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Editors ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Node (future use) ─────────────────────────────────────────
+node_modules/
+.next/
+.nuxt/
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log
+logs/
